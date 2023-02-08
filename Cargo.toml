@@ -1,0 +1,7 @@
+[workspace]
+members = [
+  # "experiment-liveview",
+  "server",
+  "web",
+  "world"
+]

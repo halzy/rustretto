@@ -1,0 +1,16 @@
+[package]
+name = "server"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bastion = { version = "0.4.5", features = ["tokio-runtime"] }
+dotenvy = "0.15.6"
+envy = "0.4.2"
+serde = { version = "1.0.152", features = ["serde_derive"] }
+tokio = { version = "1.25.0", default-features = false, features = ["rt-multi-thread", "tracing", "bytes", "fs", "macros", "net", "sync", "time"] }
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
+web = { path = "../web" }
