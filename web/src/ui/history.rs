@@ -1,21 +1,19 @@
 use axum_live_view::{extract::EmbedLiveView, html, live_view::Updated, LiveView};
 use serde::{Deserialize, Serialize};
+use util::ViewRegistrationGuard;
 
 pub(crate) struct History {
-    is_live: bool,
+    lifecycle: Option<ViewRegistrationGuard>,
 }
 
 impl History {
-    pub fn new<L>(embed_live_view: &EmbedLiveView<L>) -> Self {
+    pub fn new<L>(embed_live_view: &EmbedLiveView<L>, request_id: &util::ViewId) -> Self {
         let is_live = embed_live_view.connected();
 
-        Self { is_live }
-    }
-}
+        let lifecycle =
+            is_live.then(|| ViewRegistrationGuard::new(util::ViewKind::History, request_id));
 
-impl Drop for History {
-    fn drop(&mut self) {
-        tracing::error!("Live view is GONE+!!!!");
+        Self { lifecycle }
     }
 }
 
@@ -27,8 +25,8 @@ impl LiveView for History {
 
     fn update(
         self,
-        msg: Self::Message,
-        data: Option<axum_live_view::event_data::EventData>,
+        _msg: Self::Message,
+        _data: Option<axum_live_view::event_data::EventData>,
     ) -> axum_live_view::live_view::Updated<Self> {
         Updated::new(self)
     }
@@ -41,11 +39,14 @@ impl LiveView for History {
 
     fn mount(
         &mut self,
-        uri: hyper::Uri,
+        _uri: hyper::Uri,
         request_headers: &hyper::HeaderMap,
         handle: axum_live_view::live_view::ViewHandle<Self::Message>,
     ) {
         tracing::error!(?request_headers, "Live view history mounted");
+        if let Some(lifecycle) = &self.lifecycle {
+            lifecycle.mount(handle);
+        }
         // Send a message to something that this component exists
         // Do we send it to a single child that represents this user?
         // HP UI

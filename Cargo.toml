@@ -2,6 +2,7 @@
 members = [
   # "experiment-liveview",
   "server",
+  "util",
   "web",
   "world"
 ]

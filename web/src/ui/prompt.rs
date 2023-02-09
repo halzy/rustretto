@@ -1,16 +1,20 @@
+use util::{ViewKind, ViewRegistrationGuard};
+
 use axum_live_view::{extract::EmbedLiveView, html, js_command, live_view::Updated, LiveView};
 
 use serde::{Deserialize, Serialize};
 
 pub(crate) struct Prompt {
-    is_live: bool,
+    lifecycle: Option<util::ViewRegistrationGuard>,
 }
 
 impl Prompt {
-    pub fn new<L>(embed_live_view: &EmbedLiveView<L>) -> Self {
+    pub fn new<L>(embed_live_view: &EmbedLiveView<L>, request_id: &util::ViewId) -> Self {
         let is_live = embed_live_view.connected();
 
-        Self { is_live }
+        let lifecycle = is_live.then(|| ViewRegistrationGuard::new(ViewKind::Prompt, request_id));
+
+        Self { lifecycle }
     }
 }
 
@@ -67,11 +71,13 @@ impl LiveView for Prompt {
 
     fn mount(
         &mut self,
-        uri: hyper::Uri,
-        request_headers: &hyper::HeaderMap,
+        _uri: hyper::Uri,
+        _request_headers: &hyper::HeaderMap,
         handle: axum_live_view::live_view::ViewHandle<Self::Message>,
     ) {
-        tracing::error!(?request_headers, "Live view prompt mounted");
+        if let Some(lifecycle) = &self.lifecycle {
+            lifecycle.mount(handle);
+        }
         // Send a message to something that this component exists
         // Do we send it to a single child that represents this user?
         // HP UI

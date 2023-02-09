@@ -1,12 +1,8 @@
 mod message;
 mod ui;
 
-use std::future::Future;
-
 use bastion::{
-    msg,
     prelude::*,
-    resizer::OptimalSizeExploringResizer,
     supervisor::{SupervisionStrategy, SupervisorRef},
     Bastion,
 };
@@ -34,7 +30,7 @@ pub fn start(config: WebConfig) -> Result<SupervisorRef, ()> {
 fn start_ui(listen_port: u16, children: Children) -> Children {
     children
         .with_name("Axum Server")
-        .with_exec(move |ctx| async move {
+        .with_exec(move |_ctx| async move {
             ui::start(listen_port).await?;
             Ok(())
         })
@@ -42,7 +38,6 @@ fn start_ui(listen_port: u16, children: Children) -> Children {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     // #[test]
     // fn it_works() {

@@ -25,6 +25,7 @@ async fn main() {
     // initialize
     // * ECS
     // * Bastion
+    // * message wall
     // * Web
 
     let bastion_config = bastion::Config::new().show_backtraces();

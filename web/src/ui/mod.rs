@@ -10,7 +10,7 @@ use axum::{
     routing::{get, get_service, MethodRouter},
 };
 use axum_live_view::{html, LiveViewUpgrade};
-use hyper::{header::HeaderName, Request, StatusCode};
+use hyper::{header::HeaderName, HeaderMap, Request, StatusCode};
 use tower::util::ServiceExt;
 use tower_http::{
     request_id::{MakeRequestId, RequestId, SetRequestIdLayer},
@@ -78,10 +78,17 @@ async fn handle_error(_err: io::Error) -> impl IntoResponse {
     (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong...")
 }
 
-async fn root(live: LiveViewUpgrade) -> impl IntoResponse {
+async fn root(live: LiveViewUpgrade, headers: HeaderMap) -> impl IntoResponse {
+    let request_id = headers
+        .get("x-request-id")
+        .expect("All liveview requests have x-request-id header")
+        .to_str()
+        .map(|id| util::ViewId::new(id))
+        .expect("x-request-id can become a str");
+
     live.response(|embed_live_view| {
-        let history = History::new(&embed_live_view);
-        let prompt = Prompt::new(&embed_live_view);
+        let history = History::new(&embed_live_view, &request_id);
+        let prompt = Prompt::new(&embed_live_view, &request_id);
 
         let combined_view =
             axum_live_view::live_view::combine((history, prompt), |history, prompt| {
