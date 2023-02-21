@@ -1,5 +1,10 @@
+#![feature(result_option_inspect)]
+
 mod message;
 mod ui;
+mod view_registration_guard;
+
+use view_registration_guard::*;
 
 use bastion::{
     prelude::*,
@@ -22,7 +27,7 @@ pub fn start(config: WebConfig) -> Result<SupervisorRef, ()> {
     // Set up the socket supervisor
     Bastion::supervisor(|sp| {
         // If the supervisor dies, restart just it
-        let mut sp = sp.with_strategy(SupervisionStrategy::OneForOne);
+        let sp = sp.with_strategy(SupervisionStrategy::OneForOne);
         sp.children(|children| start_ui(config.listen_port, children))
     })
 }

@@ -1,20 +1,20 @@
-use util::{ViewKind, ViewRegistrationGuard};
+use crate::MessageListener;
 
-use axum_live_view::{extract::EmbedLiveView, html, js_command, live_view::Updated, LiveView};
+use axum_live_view::{
+    html, js_command,
+    live_view::{Updated, ViewHandle},
+    LiveView,
+};
 
 use serde::{Deserialize, Serialize};
 
 pub(crate) struct Prompt {
-    lifecycle: Option<util::ViewRegistrationGuard>,
+    message_listener: Option<MessageListener>,
 }
 
 impl Prompt {
-    pub fn new<L>(embed_live_view: &EmbedLiveView<L>, request_id: &util::ViewId) -> Self {
-        let is_live = embed_live_view.connected();
-
-        let lifecycle = is_live.then(|| ViewRegistrationGuard::new(ViewKind::Prompt, request_id));
-
-        Self { lifecycle }
+    pub fn new(message_listener: Option<MessageListener>) -> Self {
+        Self { message_listener }
     }
 }
 
@@ -45,7 +45,10 @@ impl LiveView for Prompt {
                 js_commands.push(js_command::clear_value(".prompt"));
             }
             FormMsg::UserInputChange => {
-                tracing::error!(?data, "Something happened!")
+                tracing::error!(?data, "Something happened!");
+            }
+            FormMsg::Breach(breach_message) => {
+                tracing::error!(?breach_message, "breach message!");
             }
         }
 
@@ -73,10 +76,22 @@ impl LiveView for Prompt {
         &mut self,
         _uri: hyper::Uri,
         _request_headers: &hyper::HeaderMap,
-        handle: axum_live_view::live_view::ViewHandle<Self::Message>,
+        handle: ViewHandle<Self::Message>,
     ) {
-        if let Some(lifecycle) = &self.lifecycle {
-            lifecycle.mount(handle);
+        if let Some(message_listener) = &mut self.message_listener {
+            let result = message_listener.listen(move |message: breach::Message| {
+                let handle = handle.clone();
+                async move {
+                    handle
+                        .send(Self::Message::Breach(message))
+                        .await
+                        .map_err(|_| ())
+                }
+            });
+            if let Err(err) = result {
+                tracing::error!(?err, "Error mounting prompt component.");
+                panic!("Error mounting prompt component. {:?}", err);
+            }
         }
         // Send a message to something that this component exists
         // Do we send it to a single child that represents this user?
@@ -87,7 +102,8 @@ impl LiveView for Prompt {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub(crate) enum FormMsg {
+pub enum FormMsg {
     Submit,
     UserInputChange,
+    Breach(breach::Message),
 }

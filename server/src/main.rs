@@ -16,16 +16,20 @@ async fn main() {
     dotenvy::dotenv().expect("Can load .env file.");
 
     // a builder for `FmtSubscriber`.
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        // .with_file(true)
+        .with_line_number(true)
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
 
     let app_config = envy::prefixed("RT_")
         .from_env::<AppConfig>()
         .expect("Can parse AppConfig");
 
     // initialize
-    // * ECS
     // * Bastion
-    // * message wall
+    // * ECS
+    // * ???
     // * Web
 
     let bastion_config = bastion::Config::new().show_backtraces();

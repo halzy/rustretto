@@ -10,12 +10,16 @@ use axum::{
     routing::{get, get_service, MethodRouter},
 };
 use axum_live_view::{html, LiveViewUpgrade};
+use bastion::prelude::*;
+use breach::ViewId;
 use hyper::{header::HeaderName, HeaderMap, Request, StatusCode};
 use tower::util::ServiceExt;
 use tower_http::{
     request_id::{MakeRequestId, RequestId, SetRequestIdLayer},
     services::ServeDir,
 };
+
+use crate::view_registration_guard::MessageListener;
 
 use self::{history::History, prompt::Prompt};
 fn asset_router() -> MethodRouter {
@@ -79,16 +83,29 @@ async fn handle_error(_err: io::Error) -> impl IntoResponse {
 }
 
 async fn root(live: LiveViewUpgrade, headers: HeaderMap) -> impl IntoResponse {
-    let request_id = headers
+    let view_id = headers
         .get("x-request-id")
         .expect("All liveview requests have x-request-id header")
         .to_str()
-        .map(|id| util::ViewId::new(id))
+        .map(|id| ViewId::new(id))
         .expect("x-request-id can become a str");
 
-    live.response(|embed_live_view| {
-        let history = History::new(&embed_live_view, &request_id);
-        let prompt = Prompt::new(&embed_live_view, &request_id);
+    live.response(move |embed_live_view| {
+        // create supervisor to manage this component
+        tracing::error!(
+            %view_id,
+            is_live = embed_live_view.connected(),
+            "will it blend"
+        );
+        let component_supervisor = create_component_supervisor(embed_live_view.connected())
+            .expect("Can create component supervisor");
+
+        // create the guard, it is responsible for registering the view with the breach
+        let message_listener = component_supervisor.map(|cs| MessageListener::new(view_id, cs));
+
+        // UI components
+        let history = History::new(message_listener.clone());
+        let prompt = Prompt::new(message_listener.clone());
 
         let combined_view =
             axum_live_view::live_view::combine((history, prompt), |history, prompt| {
@@ -117,4 +134,11 @@ async fn root(live: LiveViewUpgrade, headers: HeaderMap) -> impl IntoResponse {
             </html>
         }
     })
+}
+
+fn create_component_supervisor(is_live: bool) -> Result<Option<SupervisorRef>, ()> {
+    // If we are in a live_view and not the first time render we create a Supervisor
+    is_live
+        .then(|| Bastion::supervisor(|sp| sp.with_strategy(SupervisionStrategy::OneForOne)))
+        .transpose()
 }

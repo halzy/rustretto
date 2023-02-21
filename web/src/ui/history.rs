@@ -1,19 +1,14 @@
-use axum_live_view::{extract::EmbedLiveView, html, live_view::Updated, LiveView};
+use crate::MessageListener;
+use axum_live_view::{html, live_view::Updated, LiveView};
 use serde::{Deserialize, Serialize};
-use util::ViewRegistrationGuard;
 
 pub(crate) struct History {
-    lifecycle: Option<ViewRegistrationGuard>,
+    message_listener: Option<MessageListener>,
 }
 
 impl History {
-    pub fn new<L>(embed_live_view: &EmbedLiveView<L>, request_id: &util::ViewId) -> Self {
-        let is_live = embed_live_view.connected();
-
-        let lifecycle =
-            is_live.then(|| ViewRegistrationGuard::new(util::ViewKind::History, request_id));
-
-        Self { lifecycle }
+    pub fn new(message_listener: Option<MessageListener>) -> Self {
+        Self { message_listener }
     }
 }
 
@@ -44,16 +39,25 @@ impl LiveView for History {
         handle: axum_live_view::live_view::ViewHandle<Self::Message>,
     ) {
         tracing::error!(?request_headers, "Live view history mounted");
-        if let Some(lifecycle) = &self.lifecycle {
-            lifecycle.mount(handle);
+        if let Some(message_listener) = &mut self.message_listener {
+            let result = message_listener.listen(move |message: breach::Message| {
+                let handle = handle.clone();
+                async move {
+                    handle
+                        .send(Self::Message::Breach(message))
+                        .await
+                        .map_err(|_| ())
+                }
+            });
+            if let Err(err) = result {
+                tracing::error!(?err, "Error mounting history component.");
+                panic!("Error mounting history component. {:?}", err);
+            }
         }
-        // Send a message to something that this component exists
-        // Do we send it to a single child that represents this user?
-        // HP UI
-        // prompt
-        // Location
     }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub(crate) enum HistoryMsg {}
+pub(crate) enum HistoryMsg {
+    Breach(breach::Message),
+}

@@ -1,8 +1,8 @@
 [workspace]
 members = [
   # "experiment-liveview",
+  "breach",
   "server",
-  "util",
   "web",
   "world"
 ]
