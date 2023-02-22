@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 bastion = { version = "0.4.5", features = ["tokio-runtime"] }
-breach = { path = "../breach" }
 dotenvy = "0.15.6"
 envy = "0.4.2"
 serde = { version = "1.0.152", features = ["serde_derive"] }

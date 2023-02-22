@@ -6,12 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+async-trait = "0.1.64"
 axum = "0.6.4"
 axum-live-view = { git = "https://github.com/davidpdrsn/axum-live-view", version = "0.1.0", features = ["precompiled-js"] }
 bastion = { version = "*", features = ["scaling"] }
-breach = { path = "../breach" }
 futures-util = { version = "0.3.26", default-features = false, features = ["alloc"] }
 hyper = { version = "*", features = ["server", "http1"] }
+message = { path = "../message" }
 serde = { version = "1.0.152", features = ["serde_derive"] }
 tokio = { version = "*", default-features = false }
 tower = { version = "0.4.13", features = [] }

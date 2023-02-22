@@ -1,4 +1,4 @@
-use crate::MessageListener;
+use crate::{message_receiver::MessageReceiver, MessageListener};
 
 use axum_live_view::{
     html, js_command,
@@ -6,6 +6,7 @@ use axum_live_view::{
     LiveView,
 };
 
+use message::Message;
 use serde::{Deserialize, Serialize};
 
 pub(crate) struct Prompt {
@@ -18,11 +19,8 @@ impl Prompt {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-struct Message {}
-
 impl LiveView for Prompt {
-    type Message = FormMsg;
+    type Message = ViewMsg;
 
     fn update(
         self,
@@ -32,24 +30,22 @@ impl LiveView for Prompt {
         let mut js_commands = Vec::new();
 
         match msg {
-            FormMsg::Submit => {
+            ViewMsg::Submit => {
                 let new_msg = data
                     .unwrap()
                     .as_form()
                     .unwrap()
-                    .deserialize::<Message>()
+                    .deserialize::<FormData>()
                     .unwrap();
 
                 tracing::error!(something = ?new_msg, "We have a new message");
 
                 js_commands.push(js_command::clear_value(".prompt"));
             }
-            FormMsg::UserInputChange => {
+            ViewMsg::UserInputChange => {
                 tracing::error!(?data, "Something happened!");
             }
-            FormMsg::Breach(breach_message) => {
-                tracing::error!(?breach_message, "breach message!");
-            }
+            ViewMsg::Something => todo!(),
         }
 
         Updated::new(self).with_all(js_commands)
@@ -57,7 +53,7 @@ impl LiveView for Prompt {
 
     fn render(&self) -> axum_live_view::Html<Self::Message> {
         html! {
-            <form axm-submit={ FormMsg::Submit }>
+            <form axm-submit={ ViewMsg::Submit }>
                 <span class="prompt-gt">
                     "&gt;"
                 </span>
@@ -66,7 +62,7 @@ impl LiveView for Prompt {
                     type="text"
                     name="prompt"
                     placeholder="..."
-                    axm-input={ FormMsg::UserInputChange}
+                    axm-input={ ViewMsg::UserInputChange}
                 />
             </form>
         }
@@ -79,15 +75,7 @@ impl LiveView for Prompt {
         handle: ViewHandle<Self::Message>,
     ) {
         if let Some(message_listener) = &mut self.message_listener {
-            let result = message_listener.listen(move |message: breach::Message| {
-                let handle = handle.clone();
-                async move {
-                    handle
-                        .send(Self::Message::Breach(message))
-                        .await
-                        .map_err(|_| ())
-                }
-            });
+            let result = message_listener.listen(Receiver::new(handle));
             if let Err(err) = result {
                 tracing::error!(?err, "Error mounting prompt component.");
                 panic!("Error mounting prompt component. {:?}", err);
@@ -101,9 +89,34 @@ impl LiveView for Prompt {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub enum FormMsg {
+#[derive(Clone)]
+struct Receiver {
+    handle: ViewHandle<ViewMsg>,
+}
+
+impl Receiver {
+    fn new(handle: ViewHandle<ViewMsg>) -> Self {
+        Self { handle }
+    }
+}
+
+#[async_trait::async_trait]
+impl MessageReceiver for Receiver {
+    async fn receive(&self, _msg: Message) -> Result<(), ()> {
+        // FIXME: use a real messag
+        self.handle.send(ViewMsg::Something).await.map_err(|_| ())
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
+struct FormData {
+    #[allow(dead_code)]
+    prompt: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub(crate) enum ViewMsg {
     Submit,
     UserInputChange,
-    Breach(breach::Message),
+    Something,
 }

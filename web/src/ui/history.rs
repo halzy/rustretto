@@ -1,5 +1,10 @@
-use crate::MessageListener;
-use axum_live_view::{html, live_view::Updated, LiveView};
+use crate::{message_receiver::MessageReceiver, MessageListener};
+use axum_live_view::{
+    html,
+    live_view::{Updated, ViewHandle},
+    LiveView,
+};
+use message::Message;
 use serde::{Deserialize, Serialize};
 
 pub(crate) struct History {
@@ -12,11 +17,8 @@ impl History {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-struct Message {}
-
 impl LiveView for History {
-    type Message = HistoryMsg;
+    type Message = ViewMsg;
 
     fn update(
         self,
@@ -40,15 +42,7 @@ impl LiveView for History {
     ) {
         tracing::error!(?request_headers, "Live view history mounted");
         if let Some(message_listener) = &mut self.message_listener {
-            let result = message_listener.listen(move |message: breach::Message| {
-                let handle = handle.clone();
-                async move {
-                    handle
-                        .send(Self::Message::Breach(message))
-                        .await
-                        .map_err(|_| ())
-                }
-            });
+            let result = message_listener.listen(Receiver::new(handle));
             if let Err(err) = result {
                 tracing::error!(?err, "Error mounting history component.");
                 panic!("Error mounting history component. {:?}", err);
@@ -57,7 +51,26 @@ impl LiveView for History {
     }
 }
 
+#[derive(Clone)]
+struct Receiver {
+    handle: ViewHandle<ViewMsg>,
+}
+
+impl Receiver {
+    fn new(handle: ViewHandle<ViewMsg>) -> Self {
+        Self { handle }
+    }
+}
+
+#[async_trait::async_trait]
+impl MessageReceiver for Receiver {
+    async fn receive(&self, _msg: Message) -> Result<(), ()> {
+        // FIXME: use a real messag
+        self.handle.send(ViewMsg::Something).await.map_err(|_| ())
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub(crate) enum HistoryMsg {
-    Breach(breach::Message),
+pub(crate) enum ViewMsg {
+    Something,
 }

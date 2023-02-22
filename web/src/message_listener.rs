@@ -1,9 +1,7 @@
-use crate::ViewId;
+use crate::{MessageReceiver, ViewId};
 
 use bastion::prelude::*;
-use futures_util::future::FutureExt;
-
-use std::future::Future;
+use futures_util::future::Either;
 
 /// MessageListener is used to track view components mounting and unmounting.
 ///
@@ -24,10 +22,9 @@ impl MessageListener {
         }
     }
 
-    pub fn listen<F, G>(&mut self, message_handler: F) -> Result<ChildrenRef, ()>
+    pub fn listen<R>(&mut self, message_receiver: R) -> Result<ChildrenRef, ()>
     where
-        F: Fn(breach::Message) -> G + Send + 'static + Clone,
-        G: Future<Output = Result<(), ()>> + Send + 'static,
+        R: MessageReceiver + Send + 'static + Clone,
     {
         tracing::error!("MessageListener mounted");
 
@@ -40,26 +37,25 @@ impl MessageListener {
             children
                 .with_distributor(distributor)
                 .with_exec(move |ctx| {
-                    let message_handler = message_handler.clone();
+                    let message_receiver = message_receiver.clone();
                     async move {
                         // Wait for a BreachMessage that we can translate and send to the ViewHandle
                         loop {
-                            let message_handler = message_handler.clone();
+                            let message_receiver = message_receiver.clone();
                             MessageHandler::new(ctx.recv().await?)
                                 .on_tell(|msg, _sender| {
-                                    async move {
-                                        let handler = message_handler(msg);
+                                    Either::Left(async move {
+                                        let handler = message_receiver.receive(msg);
                                         handler.await.inspect_err(|_e| {
                                             tracing::trace!(
-                                                "Prompt View message loop shutting down"
+                                                "MessageListener message loop shutting down"
                                             );
                                         })
-                                    }
-                                    .boxed()
+                                    })
                                 })
                                 .on_fallback(|_msg, _sender| {
-                                    tracing::warn!("MessageSubscriber received unhandled message.");
-                                    async move { Ok(()) }.boxed()
+                                    tracing::warn!("MessageListener received unhandled message.");
+                                    Either::Right(async move { Ok(()) })
                                 })
                                 .await?
                         }

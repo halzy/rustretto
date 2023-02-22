@@ -1,10 +1,12 @@
 #![feature(result_option_inspect)]
 
 mod message_listener;
+mod message_receiver;
 mod ui;
 mod view_id;
 
 use message_listener::*;
+use message_receiver::*;
 use view_id::ViewId;
 
 use bastion::{
