@@ -1,4 +1,4 @@
-use breach::ViewId;
+use crate::ViewId;
 
 use bastion::prelude::*;
 use futures_util::future::FutureExt;

@@ -1,7 +1,8 @@
 mod history;
 mod prompt;
 
-use std::io;
+use self::{history::History, prompt::Prompt};
+use crate::{view_registration_guard::MessageListener, ViewId};
 
 use axum::{
     handler::HandlerWithoutStateExt,
@@ -11,7 +12,6 @@ use axum::{
 };
 use axum_live_view::{html, LiveViewUpgrade};
 use bastion::prelude::*;
-use breach::ViewId;
 use hyper::{header::HeaderName, HeaderMap, Request, StatusCode};
 use tower::util::ServiceExt;
 use tower_http::{
@@ -19,9 +19,7 @@ use tower_http::{
     services::ServeDir,
 };
 
-use crate::view_registration_guard::MessageListener;
-
-use self::{history::History, prompt::Prompt};
+use std::io;
 fn asset_router() -> MethodRouter {
     async fn handle_404() -> (StatusCode, &'static str) {
         (StatusCode::NOT_FOUND, "Not found")

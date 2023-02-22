@@ -1,9 +1,10 @@
 #![feature(result_option_inspect)]
 
-mod message;
 mod ui;
+mod view_id;
 mod view_registration_guard;
 
+use view_id::ViewId;
 use view_registration_guard::*;
 
 use bastion::{
