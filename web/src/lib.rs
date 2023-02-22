@@ -1,11 +1,11 @@
 #![feature(result_option_inspect)]
 
+mod message_listener;
 mod ui;
 mod view_id;
-mod view_registration_guard;
 
+use message_listener::*;
 use view_id::ViewId;
-use view_registration_guard::*;
 
 use bastion::{
     prelude::*,

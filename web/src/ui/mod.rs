@@ -2,7 +2,7 @@ mod history;
 mod prompt;
 
 use self::{history::History, prompt::Prompt};
-use crate::{view_registration_guard::MessageListener, ViewId};
+use crate::{message_listener::MessageListener, ViewId};
 
 use axum::{
     handler::HandlerWithoutStateExt,
