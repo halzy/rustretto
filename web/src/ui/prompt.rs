@@ -11,11 +11,19 @@ use serde::{Deserialize, Serialize};
 
 pub(crate) struct Prompt {
     message_listener: Option<MessageListener>,
+    message_router: Option<message::Router>,
 }
 
 impl Prompt {
     pub fn new(message_listener: Option<MessageListener>) -> Self {
-        Self { message_listener }
+        let message_router = message_listener
+            .as_ref()
+            .map(|ml| message::Router::new(ml.id().clone()));
+
+        Self {
+            message_listener,
+            message_router,
+        }
     }
 }
 
@@ -40,6 +48,8 @@ impl LiveView for Prompt {
 
                 tracing::error!(something = ?new_msg, "We have a new message");
 
+                // self.message_router.send(new_msg)?;
+
                 js_commands.push(js_command::clear_value(".prompt"));
             }
             ViewMsg::UserInputChange => {
@@ -54,9 +64,6 @@ impl LiveView for Prompt {
     fn render(&self) -> axum_live_view::Html<Self::Message> {
         html! {
             <form axm-submit={ ViewMsg::Submit }>
-                <span class="prompt-gt">
-                    "&gt;"
-                </span>
                 <input
                     class="prompt"
                     type="text"
@@ -81,6 +88,16 @@ impl LiveView for Prompt {
                 panic!("Error mounting prompt component. {:?}", err);
             }
         }
+
+        // Only connect if connection is live
+        if let Some(message_router) = &self.message_router {
+            let result = message_router.connect();
+            if let Err(err) = result {
+                tracing::error!(?err, "Error registering connection.");
+                panic!("Error registering connection. {:?}", err);
+            }
+        }
+
         // Send a message to something that this component exists
         // Do we send it to a single child that represents this user?
         // HP UI
@@ -100,11 +117,17 @@ impl Receiver {
     }
 }
 
-#[async_trait::async_trait]
 impl MessageReceiver for Receiver {
-    async fn receive(&self, _msg: Message) -> Result<(), ()> {
-        // FIXME: use a real messag
-        self.handle.send(ViewMsg::Something).await.map_err(|_| ())
+    type Message = message::Message;
+
+    type Future<'a>
+    = impl std::future::Future<Output = Result<(), ()>> + Send + 'a where Self: 'a;
+
+    fn receive(&self, _msg: Self::Message) -> Self::Future<'_> {
+        async move {
+            // FIXME: use a real messag
+            self.handle.send(ViewMsg::Something).await.map_err(|_| ())
+        }
     }
 }
 

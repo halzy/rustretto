@@ -9,11 +9,15 @@ use serde::{Deserialize, Serialize};
 
 pub(crate) struct History {
     message_listener: Option<MessageListener>,
+    messages: Vec<String>,
 }
 
 impl History {
     pub fn new(message_listener: Option<MessageListener>) -> Self {
-        Self { message_listener }
+        Self {
+            message_listener,
+            messages: vec![],
+        }
     }
 }
 
@@ -30,7 +34,15 @@ impl LiveView for History {
 
     fn render(&self) -> axum_live_view::Html<Self::Message> {
         html! {
-            <div>"history goes here!"</div>
+            <div>
+                if self.messages.is_empty() {
+                    "Connecting..."
+                } else {
+                    for message in &self.messages {
+                        <div>{message}</div>
+                    }
+                }
+            </div>
         }
     }
 
@@ -62,15 +74,23 @@ impl Receiver {
     }
 }
 
-#[async_trait::async_trait]
 impl MessageReceiver for Receiver {
-    async fn receive(&self, _msg: Message) -> Result<(), ()> {
-        // FIXME: use a real messag
-        self.handle.send(ViewMsg::Something).await.map_err(|_| ())
+    type Message = message::Client;
+
+    type Future<'a>
+    = impl std::future::Future<Output = Result<(), ()>> + Send + 'a where Self: 'a;
+
+    fn receive(&self, msg: Self::Message) -> Self::Future<'_> {
+        async move {
+            let view_msg = match msg {
+                message::Client::Welcome(text) => ViewMsg::Append(text),
+            };
+            self.handle.send(view_msg).await.map_err(|_| ())
+        }
     }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) enum ViewMsg {
-    Something,
+    Append(String),
 }

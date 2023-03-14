@@ -1,8 +1,11 @@
-use message::Message;
+use std::future::Future;
 
-use async_trait::async_trait;
+pub trait MessageReceiver: Send + 'static {
+    type Message: std::fmt::Debug + Send;
 
-#[async_trait]
-pub trait MessageReceiver {
-    async fn receive(&self, msg: Message) -> Result<(), ()>;
+    type Future<'a>: Future<Output = Result<(), ()>> + Send + 'a
+    where
+        Self: 'a;
+
+    fn receive(&self, msg: Self::Message) -> Self::Future<'_>;
 }

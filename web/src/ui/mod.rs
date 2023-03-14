@@ -1,8 +1,10 @@
 mod history;
 mod prompt;
 
-use self::{history::History, prompt::Prompt};
-use crate::{message_listener::MessageListener, ViewId};
+use crate::{
+    message_listener::MessageListener,
+    ui::{history::History, prompt::Prompt},
+};
 
 use axum::{
     handler::HandlerWithoutStateExt,
@@ -13,6 +15,8 @@ use axum::{
 use axum_live_view::{html, LiveViewUpgrade};
 use bastion::prelude::*;
 use hyper::{header::HeaderName, HeaderMap, Request, StatusCode};
+use message::ClientId;
+use serde::{Deserialize, Serialize};
 use tower::util::ServiceExt;
 use tower_http::{
     request_id::{MakeRequestId, RequestId, SetRequestIdLayer},
@@ -20,6 +24,13 @@ use tower_http::{
 };
 
 use std::io;
+
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
+pub(crate) enum Message {
+    HistoryMessage(history::ViewMsg),
+    PromptMessage(prompt::ViewMsg),
+}
+
 fn asset_router() -> MethodRouter {
     async fn handle_404() -> (StatusCode, &'static str) {
         (StatusCode::NOT_FOUND, "Not found")
@@ -81,25 +92,26 @@ async fn handle_error(_err: io::Error) -> impl IntoResponse {
 }
 
 async fn root(live: LiveViewUpgrade, headers: HeaderMap) -> impl IntoResponse {
-    let view_id = headers
+    let client_id = headers
         .get("x-request-id")
         .expect("All liveview requests have x-request-id header")
         .to_str()
-        .map(|id| ViewId::new(id))
+        .map(|id| ClientId::from(id))
         .expect("x-request-id can become a str");
 
     live.response(move |embed_live_view| {
         // create supervisor to manage this component
-        tracing::error!(
-            %view_id,
-            is_live = embed_live_view.connected(),
-            "will it blend"
+        let is_live = embed_live_view.connected();
+        tracing::trace!(
+            %client_id,
+            is_live,
+            "View Mounting"
         );
-        let component_supervisor = create_component_supervisor(embed_live_view.connected())
-            .expect("Can create component supervisor");
+        let component_supervisor =
+            create_component_supervisor(is_live).expect("Can create component supervisor");
 
         // create the guard, it is responsible for registering the view with the breach
-        let message_listener = component_supervisor.map(|cs| MessageListener::new(view_id, cs));
+        let message_listener = component_supervisor.map(|cs| MessageListener::new(client_id, cs));
 
         // UI components
         let history = History::new(message_listener.clone());

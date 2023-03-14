@@ -1,8 +1,15 @@
 [workspace]
 members = [
   # "experiment-liveview",
+  "game",
   "message",
   "server",
   "web",
+  "welcome",
   "world"
 ]
+
+[patch.'https://github.com/davidpdrsn/axum-live-view']
+# axum-live-view = { path = "../axum-live-view/axum-live-view" }
+
+[patch.crates-io]

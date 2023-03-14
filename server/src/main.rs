@@ -36,6 +36,9 @@ async fn main() {
     bastion::Bastion::init_with(bastion_config);
     bastion::Bastion::start();
 
+    let _game_supervisor = game::start();
+
+    let _welcome_supervisor = welcome::start();
     let _web_supervisor = web::start(WebConfig {
         listen_port: app_config.web_port,
     });

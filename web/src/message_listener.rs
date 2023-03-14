@@ -1,7 +1,8 @@
-use crate::{MessageReceiver, ViewId};
+use crate::MessageReceiver;
 
 use bastion::prelude::*;
-use futures_util::future::Either;
+use futures_util::{future::Either, FutureExt};
+use message::ClientId;
 
 /// MessageListener is used to track view components mounting and unmounting.
 ///
@@ -10,32 +11,35 @@ use futures_util::future::Either;
 #[derive(Clone)]
 pub struct MessageListener {
     /// An identifier that all components in the same View have
-    view_id: ViewId,
+    client_id: ClientId,
     supervisor: SupervisorRef,
 }
 
 impl MessageListener {
-    pub fn new(view_id: ViewId, supervisor: SupervisorRef) -> Self {
+    pub fn new(client_id: ClientId, supervisor: SupervisorRef) -> Self {
         Self {
-            view_id,
+            client_id,
             supervisor,
         }
     }
 
+    pub fn id(&self) -> &ClientId {
+        &self.client_id
+    }
+
     pub fn listen<R>(&mut self, message_receiver: R) -> Result<ChildrenRef, ()>
     where
-        R: MessageReceiver + Send + 'static + Clone,
+        R: MessageReceiver + Send + Sync + 'static + Clone,
     {
         tracing::error!("MessageListener mounted");
 
-        // When the game server has a message, it is sent to all the components with the same view_id
-        // the components will then use only the messages that they need.
-        let distributor = Distributor::named(self.view_id.as_ref());
-
+        let client_distributor = self.client_id.distributor();
         // Create a child that represents the UI component of this view
         self.supervisor.children(move |children| {
             children
-                .with_distributor(distributor)
+                // When the game server has a message, it is sent to all the components with the same client_id
+                // the components will then use only the messages that they need.
+                .with_distributor(client_distributor)
                 .with_exec(move |ctx| {
                     let message_receiver = message_receiver.clone();
                     async move {
@@ -43,21 +47,17 @@ impl MessageListener {
                         loop {
                             let message_receiver = message_receiver.clone();
                             MessageHandler::new(ctx.recv().await?)
-                                .on_tell(|msg, _sender| {
-                                    Either::Left(async move {
-                                        let handler = message_receiver.receive(msg);
-                                        handler.await.inspect_err(|_e| {
-                                            tracing::trace!(
-                                                "MessageListener message loop shutting down"
-                                            );
-                                        })
-                                    })
+                                .on_tell(move |msg: R::Message, _sender| {
+                                    Either::Left(async move { message_receiver.receive(msg).await })
                                 })
-                                .on_fallback(|_msg, _sender| {
+                                .on_fallback(move |_msg, _sender| {
                                     tracing::warn!("MessageListener received unhandled message.");
                                     Either::Right(async move { Ok(()) })
                                 })
-                                .await?
+                                .await
+                                .inspect_err(|_e| {
+                                    tracing::trace!("MessageListener message loop shutting down");
+                                })?
                         }
                         #[allow(unreachable_code)]
                         Ok(())

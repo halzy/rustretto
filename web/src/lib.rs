@@ -1,13 +1,14 @@
 #![feature(result_option_inspect)]
+#![feature(async_fn_in_trait)]
+#![feature(type_alias_impl_trait)]
+// #![feature(return_position_impl_trait_in_trait)]
 
 mod message_listener;
 mod message_receiver;
 mod ui;
-mod view_id;
 
 use message_listener::*;
 use message_receiver::*;
-use view_id::ViewId;
 
 use bastion::{
     prelude::*,

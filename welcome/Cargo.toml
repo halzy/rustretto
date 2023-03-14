@@ -1,10 +1,11 @@
 [package]
-name = "message"
+name = "welcome"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bastion = { version = "*" }
-serde = { version = "*", features = ["serde_derive"] }
+bastion = { version = "*", features = ["scaling"] }
+message = { path = "../message"}
+tracing = "*"
